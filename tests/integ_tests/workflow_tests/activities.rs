@@ -5,8 +5,8 @@ use futures_util::future::join_all;
 use std::time::Duration;
 use temporal_client::{WfClientExt, WorkflowClientTrait, WorkflowExecutionResult, WorkflowOptions};
 use temporal_sdk::{
-    ActContext, ActExitValue, ActivityCancelledError, ActivityOptions, CancellableFuture,
-    WfContext, WorkflowResult,
+    ActContext, ActExitValue, ActivityCancelledError, ActivityFunction, ActivityOptions,
+    CancellableFuture, WfContext, WorkflowResult,
 };
 use temporal_sdk_core_protos::{
     coresdk::{
@@ -41,7 +41,7 @@ pub async fn one_activity_wf(ctx: WfContext) -> WorkflowResult<()> {
     ctx.activity(ActivityOptions {
         activity_type: "echo_activity".to_string(),
         start_to_close_timeout: Some(Duration::from_secs(5)),
-        input: "hi!".as_json_payload().expect("serializes fine"),
+        input: vec!["hi!".as_json_payload().expect("serializes fine")],
         ..Default::default()
     })
     .await;
@@ -55,7 +55,7 @@ async fn one_activity() {
     let mut worker = starter.worker().await;
     let client = starter.get_client().await;
     worker.register_wf(wf_name.to_owned(), one_activity_wf);
-    worker.register_activity("echo_activity", echo);
+    worker.register_activity("echo_activity", ActivityFunction::new(echo));
 
     let run_id = worker
         .submit_wf(
@@ -794,7 +794,7 @@ async fn one_activity_abandon_cancelled_after_complete() {
         let act_fut = ctx.activity(ActivityOptions {
             activity_type: "echo_activity".to_string(),
             start_to_close_timeout: Some(Duration::from_secs(5)),
-            input: "hi!".as_json_payload().expect("serializes fine"),
+            input: vec!["hi!".as_json_payload().expect("serializes fine")],
             cancellation_type: ActivityCancellationType::Abandon,
             ..Default::default()
         });
@@ -806,10 +806,10 @@ async fn one_activity_abandon_cancelled_after_complete() {
     });
     worker.register_activity(
         "echo_activity",
-        |_ctx: ActContext, echo_me: String| async move {
+        ActivityFunction::new(|_ctx: ActContext, echo_me: String| async move {
             sleep(Duration::from_secs(2)).await;
             Ok(echo_me)
-        },
+        }),
     );
 
     let run_id = worker
@@ -845,7 +845,7 @@ async fn it_can_complete_async() {
         let activity_resolution = ctx
             .activity(ActivityOptions {
                 activity_type: "complete_async_activity".to_string(),
-                input: "hi".as_json_payload().expect("serializes fine"),
+                input: vec!["hi".as_json_payload().expect("serializes fine")],
                 start_to_close_timeout: Some(Duration::from_secs(30)),
                 ..Default::default()
             })
@@ -865,7 +865,7 @@ async fn it_can_complete_async() {
     let shared_token_ref = shared_token.clone();
     worker.register_activity(
         "complete_async_activity",
-        move |ctx: ActContext, _: String| {
+        ActivityFunction::new(move |ctx: ActContext, _: String| {
             let shared_token_ref = shared_token_ref.clone();
             async move {
                 // set the `activity_task_token`
@@ -875,7 +875,7 @@ async fn it_can_complete_async() {
                 *shared = Some(task_token.clone());
                 Ok::<ActExitValue<()>, _>(ActExitValue::WillCompleteAsync)
             }
-        },
+        }),
     );
 
     let shared_token_ref2 = shared_token.clone();
@@ -929,7 +929,7 @@ async fn graceful_shutdown() {
                     ..Default::default()
                 }),
                 cancellation_type: ActivityCancellationType::WaitCancellationCompleted,
-                input: "hi".as_json_payload().unwrap(),
+                input: vec!["hi".as_json_payload().unwrap()],
                 ..Default::default()
             })
         });
@@ -938,13 +938,16 @@ async fn graceful_shutdown() {
     });
     static ACTS_STARTED: Semaphore = Semaphore::const_new(0);
     static ACTS_DONE: Semaphore = Semaphore::const_new(0);
-    worker.register_activity("sleeper", |ctx: ActContext, _: String| async move {
-        ACTS_STARTED.add_permits(1);
-        // just wait to be cancelled
-        ctx.cancelled().await;
-        ACTS_DONE.add_permits(1);
-        Result::<(), _>::Err(ActivityCancelledError::default().into())
-    });
+    worker.register_activity(
+        "sleeper",
+        ActivityFunction::new(|ctx: ActContext, _: String| async move {
+            ACTS_STARTED.add_permits(1);
+            // just wait to be cancelled
+            ctx.cancelled().await;
+            ACTS_DONE.add_permits(1);
+            Result::<(), _>::Err(ActivityCancelledError::default().into())
+        }),
+    );
 
     worker
         .submit_wf(
