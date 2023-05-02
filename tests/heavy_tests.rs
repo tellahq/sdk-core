@@ -1,7 +1,7 @@
 use futures::{future::join_all, sink, stream::FuturesUnordered, StreamExt};
 use std::time::{Duration, Instant};
 use temporal_client::{WfClientExt, WorkflowClientTrait, WorkflowOptions};
-use temporal_sdk::{ActContext, ActivityOptions, WfContext, WorkflowResult};
+use temporal_sdk::{ActContext, ActivityFunction, ActivityOptions, WfContext, WorkflowResult};
 use temporal_sdk_core_protos::coresdk::{
     workflow_commands::ActivityCancellationType, AsJsonPayloadExt,
 };
@@ -32,7 +32,7 @@ async fn activity_load() {
             let activity = ActivityOptions {
                 activity_id: Some(activity_id.to_string()),
                 activity_type: "test_activity".to_string(),
-                input: payload.clone(),
+                input: vec![payload.clone()],
                 task_queue,
                 schedule_to_start_timeout: Some(activity_timeout),
                 start_to_close_timeout: Some(activity_timeout),
@@ -52,7 +52,7 @@ async fn activity_load() {
     worker.register_wf(wf_type.to_owned(), wf_fn);
     worker.register_activity(
         "test_activity",
-        |_ctx: ActContext, echo: String| async move { Ok(echo) },
+        ActivityFunction::new(|_ctx: ActContext, echo: String| async move { Ok(echo) }),
     );
     join_all((0..CONCURRENCY).map(|i| {
         let worker = &worker;
@@ -99,7 +99,7 @@ async fn workflow_load() {
                 ctx.activity(ActivityOptions {
                     activity_type: "echo_activity".to_string(),
                     start_to_close_timeout: Some(Duration::from_secs(5)),
-                    input: "hi!".as_json_payload().expect("serializes fine"),
+                    input: vec!["hi!".as_json_payload().expect("serializes fine")],
                     ..Default::default()
                 })
                 .await;
@@ -115,7 +115,7 @@ async fn workflow_load() {
     });
     worker.register_activity(
         "echo_activity",
-        |_ctx: ActContext, echo_me: String| async move { Ok(echo_me) },
+        ActivityFunction::new(|_ctx: ActContext, echo_me: String| async move { Ok(echo_me) }),
     );
     let client = starter.get_client().await;
 
@@ -170,10 +170,13 @@ async fn evict_while_la_running_no_interference() {
     let mut worker = starter.worker().await;
 
     worker.register_wf(wf_name.to_owned(), la_problem_workflow);
-    worker.register_activity("delay", |_: ActContext, _: String| async {
-        tokio::time::sleep(Duration::from_secs(15)).await;
-        Ok(())
-    });
+    worker.register_activity(
+        "delay",
+        ActivityFunction::new(|_: ActContext, _: String| async {
+            tokio::time::sleep(Duration::from_secs(15)).await;
+            Ok(())
+        }),
+    );
 
     let client = starter.get_client().await;
     let subfs = FuturesUnordered::new();
