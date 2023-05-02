@@ -2,7 +2,9 @@ use futures_util::{sink, stream::FuturesUnordered, FutureExt, StreamExt};
 use rand::{prelude::Distribution, rngs::SmallRng, Rng, SeedableRng};
 use std::{future, time::Duration};
 use temporal_client::{WfClientExt, WorkflowClientTrait, WorkflowOptions};
-use temporal_sdk::{ActContext, ActivityOptions, LocalActivityOptions, WfContext, WorkflowResult};
+use temporal_sdk::{
+    ActContext, ActivityFunction, ActivityOptions, LocalActivityOptions, WfContext, WorkflowResult,
+};
 use temporal_sdk_core_protos::coresdk::{AsJsonPayloadExt, FromJsonPayloadExt, IntoPayloadsExt};
 use temporal_sdk_core_test_utils::CoreWfStarter;
 use tokio_util::sync::CancellationToken;
@@ -47,7 +49,7 @@ async fn fuzzy_wf_def(ctx: WfContext) -> WorkflowResult<()> {
                     .activity(ActivityOptions {
                         activity_type: "echo_activity".to_string(),
                         start_to_close_timeout: Some(Duration::from_secs(5)),
-                        input: "hi!".as_json_payload().expect("serializes fine"),
+                        input: vec!["hi!".as_json_payload().expect("serializes fine")],
                         ..Default::default()
                     })
                     .map(|_| ())
@@ -56,7 +58,7 @@ async fn fuzzy_wf_def(ctx: WfContext) -> WorkflowResult<()> {
                     .local_activity(LocalActivityOptions {
                         activity_type: "echo_activity".to_string(),
                         start_to_close_timeout: Some(Duration::from_secs(5)),
-                        input: "hi!".as_json_payload().expect("serializes fine"),
+                        input: vec!["hi!".as_json_payload().expect("serializes fine")],
                         ..Default::default()
                     })
                     .map(|_| ())
@@ -82,7 +84,7 @@ async fn fuzzy_workflow() {
     // .enable_wf_state_input_recording();
     let mut worker = starter.worker().await;
     worker.register_wf(wf_name.to_owned(), fuzzy_wf_def);
-    worker.register_activity("echo_activity", echo);
+    worker.register_activity("echo_activity", ActivityFunction::new(echo));
     let client = starter.get_client().await;
 
     let mut workflow_handles = vec![];
