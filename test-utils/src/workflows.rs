@@ -1,12 +1,12 @@
 use crate::prost_dur;
 use std::time::Duration;
 use temporal_sdk::{ActivityOptions, LocalActivityOptions, WfContext, WorkflowResult};
-use temporal_sdk_core_protos::{coresdk::AsJsonPayloadExt, temporal::api::common::v1::RetryPolicy};
+use temporal_sdk_core_protos::{coresdk::AsPayloadExt, temporal::api::common::v1::RetryPolicy};
 
 pub async fn la_problem_workflow(ctx: WfContext) -> WorkflowResult<()> {
     ctx.local_activity(LocalActivityOptions {
         activity_type: "delay".to_string(),
-        input: vec!["hi".as_json_payload().expect("serializes fine")],
+        input: vec!["hi".as_payload(None).expect("serializes fine")],
         retry_policy: RetryPolicy {
             initial_interval: Some(prost_dur!(from_micros(15))),
             backoff_coefficient: 1_000.,
@@ -21,7 +21,7 @@ pub async fn la_problem_workflow(ctx: WfContext) -> WorkflowResult<()> {
     ctx.activity(ActivityOptions {
         activity_type: "delay".to_string(),
         start_to_close_timeout: Some(Duration::from_secs(20)),
-        input: vec!["hi!".as_json_payload().expect("serializes fine")],
+        input: vec!["hi!".as_payload(None).expect("serializes fine")],
         ..Default::default()
     })
     .await;

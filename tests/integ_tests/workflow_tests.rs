@@ -38,7 +38,7 @@ use temporal_sdk_core_protos::{
         workflow_activation::{workflow_activation_job, WorkflowActivation, WorkflowActivationJob},
         workflow_commands::{ActivityCancellationType, FailWorkflowExecution, StartTimer},
         workflow_completion::WorkflowActivationCompletion,
-        ActivityTaskCompletion, AsJsonPayloadExt, IntoCompletion,
+        ActivityTaskCompletion, AsPayloadExt, IntoCompletion,
     },
     temporal::api::{failure::v1::Failure, history::v1::history_event},
 };
@@ -558,7 +558,7 @@ async fn slow_completes_with_small_cache() {
             ctx.activity(ActivityOptions {
                 activity_type: "echo_activity".to_string(),
                 start_to_close_timeout: Some(Duration::from_secs(5)),
-                input: vec!["hi!".as_json_payload().expect("serializes fine")],
+                input: vec!["hi!".as_payload(None).expect("serializes fine")],
                 ..Default::default()
             })
             .await;

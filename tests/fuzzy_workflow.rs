@@ -5,7 +5,7 @@ use temporal_client::{WfClientExt, WorkflowClientTrait, WorkflowOptions};
 use temporal_sdk::{
     ActContext, ActivityFunction, ActivityOptions, LocalActivityOptions, WfContext, WorkflowResult,
 };
-use temporal_sdk_core_protos::coresdk::{AsJsonPayloadExt, FromJsonPayloadExt, IntoPayloadsExt};
+use temporal_sdk_core_protos::coresdk::{AsPayloadExt, FromPayloadExt, IntoPayloadsExt};
 use temporal_sdk_core_test_utils::CoreWfStarter;
 use tokio_util::sync::CancellationToken;
 
@@ -37,7 +37,7 @@ async fn echo(_ctx: ActContext, echo_me: String) -> Result<String, anyhow::Error
 async fn fuzzy_wf_def(ctx: WfContext) -> WorkflowResult<()> {
     let sigchan = ctx
         .make_signal_channel(FUZZY_SIG)
-        .map(|sd| FuzzyWfAction::from_json_payload(&sd.input[0]).expect("Can deserialize signal"));
+        .map(|sd| FuzzyWfAction::from_payload(None, &sd.input[0]).expect("Can deserialize signal"));
     let done = CancellationToken::new();
     let done_setter = done.clone();
 
@@ -49,7 +49,7 @@ async fn fuzzy_wf_def(ctx: WfContext) -> WorkflowResult<()> {
                     .activity(ActivityOptions {
                         activity_type: "echo_activity".to_string(),
                         start_to_close_timeout: Some(Duration::from_secs(5)),
-                        input: vec!["hi!".as_json_payload().expect("serializes fine")],
+                        input: vec!["hi!".as_payload(None).expect("serializes fine")],
                         ..Default::default()
                     })
                     .map(|_| ())
@@ -58,7 +58,7 @@ async fn fuzzy_wf_def(ctx: WfContext) -> WorkflowResult<()> {
                     .local_activity(LocalActivityOptions {
                         activity_type: "echo_activity".to_string(),
                         start_to_close_timeout: Some(Duration::from_secs(5)),
-                        input: vec!["hi!".as_json_payload().expect("serializes fine")],
+                        input: vec!["hi!".as_payload(None).expect("serializes fine")],
                         ..Default::default()
                     })
                     .map(|_| ())
@@ -114,7 +114,7 @@ async fn fuzzy_workflow() {
                         format!("{wf_name}_{i}"),
                         "".to_string(),
                         FUZZY_SIG.to_string(),
-                        [action.as_json_payload().expect("Serializes ok")].into_payloads(),
+                        [action.as_payload(None).expect("Serializes ok")].into_payloads(),
                         None,
                     )
                 })

@@ -261,8 +261,7 @@ pub mod coresdk {
         use super::external_data::LocalActivityMarkerData;
         use crate::{
             coresdk::{
-                external_data::PatchedMarkerData, AsJsonPayloadExt, FromJsonPayloadExt,
-                IntoPayloadsExt,
+                external_data::PatchedMarkerData, AsPayloadExt, FromPayloadExt, IntoPayloadsExt,
             },
             temporal::api::common::v1::{Payload, Payloads},
             PATCHED_MARKER_DETAILS_KEY,
@@ -278,7 +277,7 @@ pub mod coresdk {
                 id: patch_id.into(),
                 deprecated,
             }
-            .as_json_payload()?;
+            .as_payload(None)?;
             hm.insert(PATCHED_MARKER_DETAILS_KEY.to_string(), encoded.into());
             Ok(hm)
         }
@@ -289,7 +288,7 @@ pub mod coresdk {
             // We used to write change markers with plain bytes, so try to decode if they are
             // json first, then fall back to that.
             if let Some(cd) = details.get(PATCHED_MARKER_DETAILS_KEY) {
-                let decoded = PatchedMarkerData::from_json_payload(cd.payloads.first()?).ok()?;
+                let decoded = PatchedMarkerData::from_payload(None, cd.payloads.first()?).ok()?;
                 return Some((decoded.id, decoded.deprecated));
             }
 
@@ -307,7 +306,7 @@ pub mod coresdk {
             let mut hm = HashMap::new();
             // It would be more efficient for this to be proto binary, but then it shows up as
             // meaningless in the Temporal UI...
-            if let Some(jsonified) = metadata.as_json_payload().into_payloads() {
+            if let Some(jsonified) = metadata.as_payload(None).into_payloads() {
                 hm.insert("data".to_string(), jsonified);
             }
             if let Some(res) = result {
@@ -1261,6 +1260,13 @@ pub mod coresdk {
         }
     }
 
+    /// Trait to map the Failure to Rust Error for idiomatic error handling in Workflow code <br/>
+    /// NOTE: This is *NOT* the generic
+    /// [failure converter](https://docs.temporal.io/dataconversion#failure-converter)
+    pub trait FromFailureExt: std::error::Error {
+        fn from_failure(failure: Failure) -> Self;
+    }
+
     pub trait FromPayloadsExt {
         fn from_payloads(p: Option<Payloads>) -> Self;
     }
@@ -1322,16 +1328,23 @@ pub mod coresdk {
         DeserializeErr(#[from] anyhow::Error),
     }
 
+    // TODO: Set the options in worker and propagate to Contexts
+    // TODO: Get the options from Context and use the different serializer/deserializer based on payload and options
+    // TODO: Add features to enable different 'Serde' supported crates.
+    // TODO: Figure out if we have to put the options into 'Arc'.
+    // Payload converter options
+    pub struct PayloadConverterOptions {}
+
     // TODO: Once the prototype SDK is un-prototyped this serialization will need to be compat with
     //   other SDKs (given they might execute an activity).
-    pub trait AsJsonPayloadExt {
-        fn as_json_payload(&self) -> anyhow::Result<Payload>;
+    pub trait AsPayloadExt {
+        fn as_payload(&self, options: Option<PayloadConverterOptions>) -> anyhow::Result<Payload>;
     }
-    impl<T> AsJsonPayloadExt for T
+    impl<T> AsPayloadExt for T
     where
         T: Serialize,
     {
-        fn as_json_payload(&self) -> anyhow::Result<Payload> {
+        fn as_payload(&self, _options: Option<PayloadConverterOptions>) -> anyhow::Result<Payload> {
             let as_json = serde_json::to_string(self)?;
             let mut metadata = HashMap::new();
             metadata.insert(
@@ -1345,14 +1358,20 @@ pub mod coresdk {
         }
     }
 
-    pub trait FromJsonPayloadExt: Sized {
-        fn from_json_payload(payload: &Payload) -> Result<Self, PayloadDeserializeErr>;
+    pub trait FromPayloadExt: Sized {
+        fn from_payload(
+            options: Option<PayloadConverterOptions>,
+            payload: &Payload,
+        ) -> Result<Self, PayloadDeserializeErr>;
     }
-    impl<T> FromJsonPayloadExt for T
+    impl<T> FromPayloadExt for T
     where
         T: for<'de> Deserialize<'de>,
     {
-        fn from_json_payload(payload: &Payload) -> Result<Self, PayloadDeserializeErr> {
+        fn from_payload(
+            _options: Option<PayloadConverterOptions>,
+            payload: &Payload,
+        ) -> Result<Self, PayloadDeserializeErr> {
             if !payload.is_json_payload() {
                 return Err(PayloadDeserializeErr::DeserializerDoesNotHandle);
             }

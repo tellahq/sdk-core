@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 use temporal_client::{WfClientExt, WorkflowClientTrait, WorkflowOptions};
 use temporal_sdk::{ActContext, ActivityFunction, ActivityOptions, WfContext, WorkflowResult};
 use temporal_sdk_core_protos::coresdk::{
-    workflow_commands::ActivityCancellationType, AsJsonPayloadExt,
+    workflow_commands::ActivityCancellationType, AsPayloadExt,
 };
 use temporal_sdk_core_test_utils::{workflows::la_problem_workflow, CoreWfStarter};
 
@@ -27,7 +27,7 @@ async fn activity_load() {
 
     let wf_fn = move |ctx: WfContext| {
         let task_queue = task_queue.clone();
-        let payload = "yo".as_json_payload().unwrap();
+        let payload = "yo".as_payload(None).unwrap();
         async move {
             let activity = ActivityOptions {
                 activity_id: Some(activity_id.to_string()),
@@ -99,7 +99,7 @@ async fn workflow_load() {
                 ctx.activity(ActivityOptions {
                     activity_type: "echo_activity".to_string(),
                     start_to_close_timeout: Some(Duration::from_secs(5)),
-                    input: vec!["hi!".as_json_payload().expect("serializes fine")],
+                    input: vec!["hi!".as_payload(None).expect("serializes fine")],
                     ..Default::default()
                 })
                 .await;
