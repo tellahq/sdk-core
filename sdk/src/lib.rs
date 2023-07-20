@@ -93,7 +93,7 @@ use temporal_sdk_core_protos::{
         },
         workflow_commands::{workflow_command, ContinueAsNewWorkflowExecution},
         workflow_completion::WorkflowActivationCompletion,
-        ActivityTaskCompletion, AsJsonPayloadExt, FromJsonPayloadExt,
+        ActivityTaskCompletion, AsPayloadExt, FromPayloadExt,
     },
     temporal::api::{common::v1::Payload, failure::v1::Failure},
     TaskToken,
@@ -708,7 +708,7 @@ impl<F, Fut, O> From<F> for WorkflowFunction
 where
     F: Fn(WfContext) -> Fut + Send + Sync + 'static,
     Fut: Future<Output = Result<WfExitValue<O>, anyhow::Error>> + Send + 'static,
-    O: Serialize + Debug,
+    O: AsPayloadExt + Debug,
 {
     fn from(wf_func: F) -> Self {
         Self::new(wf_func)
@@ -721,9 +721,10 @@ impl WorkflowFunction {
     where
         F: Fn(WfContext) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = Result<WfExitValue<O>, anyhow::Error>> + Send + 'static,
-        O: Serialize + Debug,
+        O: AsPayloadExt + Debug,
     {
         Self {
+            /// Consume the closure or fn pointer and turned it into a boxed activity function
             wf_func: Box::new(move |ctx: WfContext| {
                 (f)(ctx)
                     .map(|r| {
@@ -732,11 +733,44 @@ impl WorkflowFunction {
                                 WfExitValue::ContinueAsNew(b) => WfExitValue::ContinueAsNew(b),
                                 WfExitValue::Cancelled => WfExitValue::Cancelled,
                                 WfExitValue::Evicted => WfExitValue::Evicted,
-                                WfExitValue::Normal(o) => WfExitValue::Normal(o.as_json_payload()?),
+                                WfExitValue::Normal(o) => WfExitValue::Normal(o.as_payload(None)?),
                             })
                         })
                     })
                     .boxed()
+            }),
+        }
+    }
+
+    /// Create new activity function from a function that takes one argument
+    pub fn from<A, F, Fut, R, O>(f: F) -> Self
+    where
+        A: FromPayloadExt + Send,
+        F: Fn(WfContext, A) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Result<WfExitValue<O>, anyhow::Error>> + Send + 'static,
+        R: Into<WfExitValue<O>>,
+        O: AsPayloadExt + Debug,
+    {
+        Self {
+            /// Consume the closure or fn pointer and turned it into a boxed activity function
+            wf_func: Box::new(move |ctx: WfContext| {
+                match A::from_payload(None, &ctx.get_args()[0]) {
+                    Ok(a) => (f)(ctx, a)
+                        .map(|r| {
+                            r.and_then(|r| {
+                                Ok(match r {
+                                    WfExitValue::ContinueAsNew(b) => WfExitValue::ContinueAsNew(b),
+                                    WfExitValue::Cancelled => WfExitValue::Cancelled,
+                                    WfExitValue::Evicted => WfExitValue::Evicted,
+                                    WfExitValue::Normal(o) => {
+                                        WfExitValue::Normal(o.as_payload(None)?)
+                                    }
+                                })
+                            })
+                        })
+                        .boxed(),
+                    Err(e) => async move { Err(anyhow::Error::new(e)) }.boxed(),
+                }
             }),
         }
     }
@@ -746,7 +780,7 @@ impl WorkflowFunction {
 pub type WorkflowResult<T> = Result<WfExitValue<T>, anyhow::Error>;
 
 /// Workflow functions may return these values when exiting
-#[derive(Debug, derive_more::From)]
+#[derive(derive_more::From)]
 pub enum WfExitValue<T: Debug> {
     /// Continue the workflow as a new execution
     #[from(ignore)]
@@ -797,7 +831,7 @@ impl<F, Fut, O> From<F> for ActivityFunction
 where
     F: Fn(ActContext) -> Fut + Send + Sync + 'static,
     Fut: Future<Output = Result<ActExitValue<O>, anyhow::Error>> + Send + 'static,
-    O: AsJsonPayloadExt + Debug,
+    O: AsPayloadExt + Debug,
 {
     fn from(act_func: F) -> Self {
         Self::from(act_func)
@@ -810,9 +844,10 @@ impl ActivityFunction {
     where
         F: Fn(ActContext) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = Result<ActExitValue<O>, anyhow::Error>> + Send + 'static,
-        O: AsJsonPayloadExt + Debug,
+        O: AsPayloadExt + Debug,
     {
         Self {
+            /// Consume the closure or fn pointer and turned it into a boxed activity function
             act_func: Arc::new(move |ctx: ActContext| {
                 (act_func)(ctx)
                     .map(|r| {
@@ -820,7 +855,7 @@ impl ActivityFunction {
                             Ok(match r {
                                 ActExitValue::WillCompleteAsync => ActExitValue::WillCompleteAsync,
                                 ActExitValue::Normal(o) => {
-                                    ActExitValue::Normal(o.as_json_payload()?)
+                                    ActExitValue::Normal(o.as_payload(None)?)
                                 }
                             })
                         })
@@ -833,15 +868,16 @@ impl ActivityFunction {
     /// Create new activity function from a function that takes one argument
     pub fn new<A, F, Fut, R, O>(act_func: F) -> Self
     where
-        A: FromJsonPayloadExt + Send,
+        A: FromPayloadExt + Send,
         F: Fn(ActContext, A) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = Result<R, anyhow::Error>> + Send + 'static,
         R: Into<ActExitValue<O>>,
-        O: AsJsonPayloadExt + Debug,
+        O: AsPayloadExt + Debug,
     {
         Self {
+            /// Consume the closure or fn pointer and turned it into a boxed activity function
             act_func: Arc::new(move |ctx: ActContext| {
-                match A::from_json_payload(&ctx.get_args()[0]) {
+                match A::from_payload(None, &ctx.get_args()[0]) {
                     Ok(a) => (act_func)(ctx, a)
                         .map(|r| {
                             r.and_then(|r| {
@@ -851,7 +887,7 @@ impl ActivityFunction {
                                         ActExitValue::WillCompleteAsync
                                     }
                                     ActExitValue::Normal(o) => {
-                                        ActExitValue::Normal(o.as_json_payload()?)
+                                        ActExitValue::Normal(o.as_payload(None)?)
                                     }
                                 })
                             })
@@ -903,15 +939,15 @@ pub trait IntoActivityFunc<Args, Res, Out> {
 impl<A, Rf, R, O, F> IntoActivityFunc<A, Rf, O> for F
 where
     F: (Fn(ActContext, A) -> Rf) + Sync + Send + 'static,
-    A: FromJsonPayloadExt + Send,
+    A: FromPayloadExt + Send,
     Rf: Future<Output = Result<R, anyhow::Error>> + Send + 'static,
     R: Into<ActExitValue<O>>,
-    O: AsJsonPayloadExt + Debug,
+    O: AsPayloadExt + Debug,
 {
     fn into_activity_fn(self) -> BoxActFn {
         let wrapper = move |ctx: ActContext| {
             // Some minor gymnastics are required to avoid needing to clone the function
-            match A::from_json_payload(&ctx.get_args()[0]) {
+            match A::from_payload(None, &ctx.get_args()[0]) {
                 Ok(a) => (self)(ctx, a)
                     .map(|r| {
                         r.and_then(|r| {
@@ -919,7 +955,7 @@ where
                             Ok(match exit_val {
                                 ActExitValue::WillCompleteAsync => ActExitValue::WillCompleteAsync,
                                 ActExitValue::Normal(x) => {
-                                    ActExitValue::Normal(x.as_json_payload()?)
+                                    ActExitValue::Normal(x.as_payload(None)?)
                                 }
                             })
                         })

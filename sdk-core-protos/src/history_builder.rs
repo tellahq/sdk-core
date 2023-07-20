@@ -7,7 +7,7 @@ use crate::{
         },
         external_data::LocalActivityMarkerData,
         workflow_commands::ScheduleActivity,
-        AsJsonPayloadExt, IntoPayloadsExt,
+        AsPayloadExt, IntoPayloadsExt,
     },
     temporal::api::{
         common::v1::{
@@ -427,7 +427,7 @@ impl TestHistoryBuilder {
         let mut indexed_fields = HashMap::new();
         indexed_fields.insert(
             "TemporalChangeVersion".to_string(),
-            attribs.as_json_payload().unwrap(),
+            attribs.as_payload(None).unwrap(),
         );
         let attrs = UpsertWorkflowSearchAttributesEventAttributes {
             workflow_task_completed_event_id: self.previous_task_completed_id,
