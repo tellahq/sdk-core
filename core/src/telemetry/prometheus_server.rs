@@ -26,12 +26,11 @@ impl PromServer {
         temporality: impl TemporalitySelector + Send + Sync + 'static,
         tags: &HashMap<String, String>,
     ) -> Result<Self, anyhow::Error> {
-        let controller =
-            controllers::basic(processors::factory(aggregation, temporality).with_memory(true))
-                // Because Prom is pull-based, make this always refresh
-                .with_collect_period(Duration::from_secs(0))
-                .with_resource(default_resource(tags))
-                .build();
+        let controller = controllers::basic(processors::factory(aggregation, temporality))
+            // Because Prom is pull-based, make this always refresh
+            .with_collect_period(Duration::from_secs(0))
+            .with_resource(default_resource(tags))
+            .build();
         let exporter = ExporterBuilder::new(controller).try_init()?;
         let bound_addr = AddrIncoming::bind(&addr)?;
         Ok(Self {
