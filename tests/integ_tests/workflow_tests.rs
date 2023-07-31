@@ -5,6 +5,7 @@ mod cancel_wf;
 mod child_workflows;
 mod continue_as_new;
 mod determinism;
+mod examples;
 mod local_activities;
 mod modify_wf_properties;
 mod patches;
@@ -27,7 +28,9 @@ use std::{
     time::Duration,
 };
 use temporal_client::{WorkflowClientTrait, WorkflowOptions};
-use temporal_sdk::{interceptors::WorkerInterceptor, ActivityOptions, WfContext, WorkflowResult};
+use temporal_sdk::{
+    interceptors::WorkerInterceptor, ActivityFunction, ActivityOptions, WfContext, WorkflowResult,
+};
 use temporal_sdk_core::replay::HistoryForReplay;
 use temporal_sdk_core_api::{errors::PollWfError, Worker};
 use temporal_sdk_core_protos::{
@@ -36,7 +39,7 @@ use temporal_sdk_core_protos::{
         workflow_activation::{workflow_activation_job, WorkflowActivation, WorkflowActivationJob},
         workflow_commands::{ActivityCancellationType, FailWorkflowExecution, StartTimer},
         workflow_completion::WorkflowActivationCompletion,
-        ActivityTaskCompletion, AsJsonPayloadExt, IntoCompletion,
+        ActivityTaskCompletion, AsPayloadExt, IntoCompletion,
     },
     temporal::api::{failure::v1::Failure, history::v1::history_event},
 };
@@ -556,7 +559,7 @@ async fn slow_completes_with_small_cache() {
             ctx.activity(ActivityOptions {
                 activity_type: "echo_activity".to_string(),
                 start_to_close_timeout: Some(Duration::from_secs(5)),
-                input: "hi!".as_json_payload().expect("serializes fine"),
+                input: vec!["hi!".as_payload(None).expect("serializes fine")],
                 ..Default::default()
             })
             .await;
@@ -564,7 +567,7 @@ async fn slow_completes_with_small_cache() {
         }
         Ok(().into())
     });
-    worker.register_activity("echo_activity", echo);
+    worker.register_activity("echo_activity", ActivityFunction::new(echo));
     for i in 0..20 {
         worker
             .submit_wf(

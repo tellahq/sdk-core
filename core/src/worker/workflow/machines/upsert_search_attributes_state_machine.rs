@@ -209,7 +209,7 @@ mod tests {
     use temporal_sdk_core_protos::{
         coresdk::{
             workflow_commands::SetPatchMarker, workflow_completion::WorkflowActivationCompletion,
-            AsJsonPayloadExt,
+            AsPayloadExt,
         },
         temporal::api::{
             command::v1::command::Attributes, common::v1::Payload,
@@ -353,7 +353,7 @@ mod tests {
         let mut ver_upsert = HashMap::new();
         ver_upsert.insert(
             VERSION_SEARCH_ATTR_KEY.to_string(),
-            "hi".as_json_payload().unwrap(),
+            "hi".as_payload(None).unwrap(),
         );
         let act = core.poll_workflow_activation().await.unwrap();
         let mut cmds = if with_patched_cmd {
