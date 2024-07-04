@@ -20,6 +20,7 @@ backoff = "0.4"
 base64 = "0.22"
 derive_builder = { workspace = true }
 derive_more = { workspace = true }
+futures = { version = "0.3" }
 futures-util = { version = "0.3", default-features = false }
 futures-retry = "0.6.0"
 http = "1.1.0"

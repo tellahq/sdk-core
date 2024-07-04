@@ -14,6 +14,7 @@ categories = ["development-tools"]
 async-trait = "0.1"
 anyhow = "1.0"
 derive_more = { workspace = true }
+futures = { version = "0.3" }
 futures-util = { version = "0.3", default-features = false }
 parking_lot = { version = "0.12", features = ["send_guard"] }
 prost-types = { version = "0.6", package = "prost-wkt-types" }
