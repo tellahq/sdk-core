@@ -72,6 +72,8 @@ pub struct ActivityOptions {
     pub priority: Option<Priority>,
     /// If true, disable eager execution for this activity
     pub do_not_eagerly_execute: bool,
+    /// Headers to attach to the activity
+    pub headers: HashMap<String, Payload>,
 }
 
 impl IntoWorkflowCommand for ActivityOptions {
@@ -101,6 +103,7 @@ impl IntoWorkflowCommand for ActivityOptions {
                     retry_policy: self.retry_policy,
                     priority: self.priority.map(Into::into),
                     do_not_eagerly_execute: self.do_not_eagerly_execute,
+                    headers: self.headers,
                     ..Default::default()
                 }
                 .into(),
@@ -154,6 +157,8 @@ pub struct LocalActivityOptions {
     /// specified. If set, this must be <= `schedule_to_close_timeout`, if not, it will be clamped
     /// down.
     pub start_to_close_timeout: Option<Duration>,
+    /// Headers to attach to the local activity
+    pub headers: HashMap<String, Payload>,
 }
 
 impl IntoWorkflowCommand for LocalActivityOptions {
@@ -189,6 +194,7 @@ impl IntoWorkflowCommand for LocalActivityOptions {
                     start_to_close_timeout: self
                         .start_to_close_timeout
                         .and_then(|d| d.try_into().ok()),
+                    headers: self.headers,
                     ..Default::default()
                 }
                 .into(),
@@ -221,6 +227,8 @@ pub struct ChildWorkflowOptions {
     pub static_summary: Option<String>,
     /// Static details of the child workflow
     pub static_details: Option<String>,
+    /// Headers to attach to the child workflow
+    pub headers: HashMap<String, Payload>,
 }
 
 impl IntoWorkflowCommand for ChildWorkflowOptions {
@@ -259,6 +267,7 @@ impl IntoWorkflowCommand for ChildWorkflowOptions {
                     cron_schedule: self.options.cron_schedule.unwrap_or_default(),
                     parent_close_policy: self.parent_close_policy as i32,
                     priority: self.options.priority.map(Into::into),
+                    headers: self.headers,
                     ..Default::default()
                 }
                 .into(),

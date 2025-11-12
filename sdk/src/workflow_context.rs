@@ -124,6 +124,11 @@ impl WfContext {
         self.inital_information.arguments.as_slice()
     }
 
+    /// Get the headers provided to the workflow upon execution start
+    pub fn headers(&self) -> &HashMap<String, Payload> {
+        &self.inital_information.headers
+    }
+
     /// Return the current time according to the workflow (which is not wall-clock time).
     pub fn workflow_time(&self) -> Option<SystemTime> {
         self.shared.read().wf_time

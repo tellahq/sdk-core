@@ -1115,6 +1115,9 @@ pub struct WorkflowOptions {
 
     /// Priority for the workflow
     pub priority: Option<Priority>,
+
+    /// Headers to attach to the workflow
+    pub headers: HashMap<String, Payload>,
 }
 
 /// Priority contains metadata that controls relative ordering of task processing
@@ -1218,6 +1221,11 @@ where
                 links: options.links,
                 completion_callbacks: options.completion_callbacks,
                 priority: options.priority.map(Into::into),
+                header: if options.headers.is_empty() {
+                    None
+                } else {
+                    Some(Header { fields: options.headers })
+                },
                 ..Default::default()
             })
             .await?
