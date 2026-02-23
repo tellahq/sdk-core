@@ -134,7 +134,14 @@ pub(crate) fn init_worker_client(
     if let Some(ref id_override) = config.client_identity_override {
         client.options_mut().identity.clone_from(id_override);
     }
-    RetryClient::new(client, RetryConfig::default())
+    let retry_client = RetryClient::new(client, RetryConfig::default());
+    if config.max_task_poll_retries > 0 {
+        let mut poll_cfg = RetryConfig::task_poll_retry_policy();
+        poll_cfg.max_retries = config.max_task_poll_retries;
+        retry_client.with_task_poll_retry_config(poll_cfg)
+    } else {
+        retry_client
+    }
 }
 
 /// Creates a unique sticky queue name for a worker, iff the config allows for 1 or more cached

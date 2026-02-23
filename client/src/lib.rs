@@ -232,7 +232,9 @@ impl Default for RetryConfig {
 }
 
 impl RetryConfig {
-    pub(crate) const fn task_poll_retry_policy() -> Self {
+    /// The default retry policy for task poll requests (workflow, activity, nexus).
+    /// Retries indefinitely with exponential backoff (200ms initial, 2x multiplier, 10s max).
+    pub const fn task_poll_retry_policy() -> Self {
         Self {
             initial_interval: Duration::from_millis(200),
             randomization_factor: 0.2,

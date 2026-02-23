@@ -25,6 +25,7 @@ const LONG_POLL_FATAL_GRACE: Duration = Duration::from_secs(60);
 pub struct RetryClient<SG> {
     client: SG,
     retry_config: Arc<RetryConfig>,
+    task_poll_retry_override: Option<Arc<RetryConfig>>,
 }
 
 impl<SG> RetryClient<SG> {
@@ -33,7 +34,16 @@ impl<SG> RetryClient<SG> {
         Self {
             client,
             retry_config: Arc::new(retry_config),
+            task_poll_retry_override: None,
         }
+    }
+
+    /// Override the retry policy used for task poll requests (workflow, activity, nexus).
+    /// By default, task polls use an unlimited-retry policy. Use this to set a finite
+    /// `max_retries` so the worker exits after repeated poll failures.
+    pub fn with_task_poll_retry_config(mut self, config: RetryConfig) -> Self {
+        self.task_poll_retry_override = Some(Arc::new(config));
+        self
     }
 }
 
@@ -71,7 +81,10 @@ impl<SG> RetryClient<SG> {
             retry_short_circuit = ext.get::<NoRetryOnMatching>().cloned();
         }
         let retry_cfg = if call_type == CallType::TaskLongPoll {
-            RetryConfig::task_poll_retry_policy()
+            self.task_poll_retry_override
+                .as_deref()
+                .cloned()
+                .unwrap_or_else(RetryConfig::task_poll_retry_policy)
         } else {
             (*self.retry_config).clone()
         };

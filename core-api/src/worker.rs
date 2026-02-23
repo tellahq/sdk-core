@@ -122,6 +122,14 @@ pub struct WorkerConfig {
     #[builder(default = "Duration::from_secs(5)")]
     pub local_timeout_buffer_for_activities: Duration,
 
+    /// Maximum number of retries for task poll requests (workflow, activity, nexus) before the
+    /// error is propagated. 0 means unlimited retries (default, preserving existing behavior).
+    /// Setting this to a nonzero value causes the worker to exit with an error after that many
+    /// consecutive poll failures, allowing the orchestrator (e.g. Kubernetes) to restart the pod
+    /// with fresh connections.
+    #[builder(default = "0")]
+    pub max_task_poll_retries: usize,
+
     /// Any error types listed here will cause any workflow being processed by this worker to fail,
     /// rather than simply failing the workflow task.
     #[builder(default)]
