@@ -70,6 +70,8 @@ pub struct ActivityOptions {
     pub priority: Option<Priority>,
     /// If true, disable eager execution for this activity
     pub do_not_eagerly_execute: bool,
+    /// Headers to attach to the activity task, e.g. for trace context propagation.
+    pub headers: HashMap<String, Payload>,
 }
 
 impl ActivityOptions {
@@ -104,6 +106,7 @@ impl ActivityOptions {
                     retry_policy: self.retry_policy,
                     priority: self.priority.map(Into::into),
                     do_not_eagerly_execute: self.do_not_eagerly_execute,
+                    headers: self.headers,
                     ..Default::default()
                 }
                 .into(),
@@ -244,6 +247,8 @@ pub struct ChildWorkflowOptions {
     pub search_attributes: Option<HashMap<String, Payload>>,
     /// Priority for the workflow
     pub priority: Option<Priority>,
+    /// Headers to attach to the child workflow, e.g. for trace context propagation.
+    pub headers: HashMap<String, Payload>,
 }
 
 impl IntoWorkflowCommand for ChildWorkflowOptions {
@@ -277,6 +282,7 @@ impl IntoWorkflowCommand for ChildWorkflowOptions {
                     cron_schedule: self.cron_schedule.unwrap_or_default(),
                     parent_close_policy: self.parent_close_policy as i32,
                     priority: self.priority.map(Into::into),
+                    headers: self.headers,
                     ..Default::default()
                 }
                 .into(),
