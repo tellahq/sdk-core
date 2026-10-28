@@ -4,7 +4,7 @@ use prost_types::{
     field_descriptor_proto::{Label, Type},
 };
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet},
     env,
     fs::File,
     io::{Read, Write},
@@ -253,25 +253,25 @@ struct OneofVariant {
 /// Generator for PayloadVisitable implementations.
 struct PayloadVisitorGenerator {
     /// Maps fully qualified message names to their descriptors
-    messages: HashMap<String, DescriptorProto>,
+    messages: BTreeMap<String, DescriptorProto>,
     /// Messages that contain Payloads (directly or transitively)
-    payload_containing: HashSet<String>,
+    payload_containing: BTreeSet<String>,
     /// Types currently being checked (for cycle detection)
-    checking: HashSet<String>,
+    checking: BTreeSet<String>,
     /// Types that have been checked and don't contain payloads
-    not_payload_containing: HashSet<String>,
+    not_payload_containing: BTreeSet<String>,
     /// The payload fields for each message
-    message_fields: HashMap<String, Vec<PayloadFieldInfo>>,
+    message_fields: BTreeMap<String, Vec<PayloadFieldInfo>>,
 }
 
 impl PayloadVisitorGenerator {
     fn new() -> Self {
         Self {
-            messages: HashMap::new(),
-            payload_containing: HashSet::new(),
-            checking: HashSet::new(),
-            not_payload_containing: HashSet::new(),
-            message_fields: HashMap::new(),
+            messages: BTreeMap::new(),
+            payload_containing: BTreeSet::new(),
+            checking: BTreeSet::new(),
+            not_payload_containing: BTreeSet::new(),
+            message_fields: BTreeMap::new(),
         }
     }
 
@@ -438,7 +438,7 @@ impl PayloadVisitorGenerator {
         let mut fields = Vec::new();
 
         // Group fields by oneof
-        let mut oneof_fields: HashMap<i32, Vec<&FieldDescriptorProto>> = HashMap::new();
+        let mut oneof_fields: BTreeMap<i32, Vec<&FieldDescriptorProto>> = BTreeMap::new();
         let mut regular_fields: Vec<&FieldDescriptorProto> = Vec::new();
 
         for field in &msg.field {
